@@ -13,3 +13,8 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+
+# AI Assistant Skills (mobile-best-practices)
+.claude/
+.mobile-best-practices/
