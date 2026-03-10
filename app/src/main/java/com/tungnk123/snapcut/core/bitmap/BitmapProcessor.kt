@@ -7,7 +7,6 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
-import android.graphics.PathEffect
 import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
@@ -25,7 +24,7 @@ class BitmapProcessor(
      * Decodes a URI to a Bitmap, respecting the image orientation.
      * Scales down large images to [maxDimension] to avoid OOM.
      */
-    suspend fun decodeBitmap(uri: Uri, maxDimension: Int = 2048): Result<Bitmap> =
+    suspend fun decodeBitmap(uri: Uri, maxDimension: Int = 1024): Result<Bitmap> =
         withContext(ioDispatcher) {
             runCatching {
                 val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -38,6 +37,10 @@ class BitmapProcessor(
                     maxDimension
                 )
                 options.inJustDecodeBounds = false
+                // RGB_565 uses 2 bytes/pixel vs ARGB_8888's 4 bytes — halves GPU memory
+                // for the MLKit input tensor, reducing SIGSEGV risk in drishti_gl_runn.
+                // The segmentation output (foreground bitmap) is still ARGB_8888.
+                options.inPreferredConfig = Bitmap.Config.RGB_565
                 context.contentResolver.openInputStream(uri)?.use {
                     BitmapFactory.decodeStream(it, null, options)
                 } ?: error("Cannot open URI: $uri")
@@ -116,33 +119,33 @@ class BitmapProcessor(
      */
     fun extractOutlinePath(
         result: SegmentationResult,
-        threshold: Float = 0.5f
+        threshold: Float = 0.5f,
+        // Sample every `step` pixels to reduce path complexity ~step² times.
+        // step=8 reduces a 1080x2400 scan from 2.6M to ~40k checks and
+        // drops path rect count from ~10k to ~150 — 60fps draw becomes trivial.
+        step: Int = 8
     ): Path {
         val maskBuffer = result.confidenceMask ?: return Path()
         val width = result.maskWidth
         val height = result.maskHeight
         val path = Path()
 
-        // Copy FloatBuffer to array for random-access indexing
         maskBuffer.rewind()
         val mask = FloatArray(maskBuffer.remaining()).also { maskBuffer.get(it) }
 
-        // Walk the mask border pixels and build an approximate outline path
-        for (y in 0 until height) {
-            for (x in 0 until width) {
+        for (y in 0 until height step step) {
+            for (x in 0 until width step step) {
                 val idx = y * width + x
-                val confidence = mask.getOrNull(idx) ?: 0f
-                if (confidence >= threshold) {
-                    val isBorder = listOf(
-                        mask.getOrNull((y - 1) * width + x) ?: 0f,
-                        mask.getOrNull((y + 1) * width + x) ?: 0f,
-                        mask.getOrNull(y * width + (x - 1)) ?: 0f,
-                        mask.getOrNull(y * width + (x + 1)) ?: 0f
-                    ).any { it < threshold }
+                if ((mask.getOrNull(idx) ?: 0f) >= threshold) {
+                    val isBorder =
+                        (mask.getOrNull((y - step) * width + x) ?: 0f) < threshold ||
+                        (mask.getOrNull((y + step) * width + x) ?: 0f) < threshold ||
+                        (mask.getOrNull(y * width + (x - step)) ?: 0f) < threshold ||
+                        (mask.getOrNull(y * width + (x + step)) ?: 0f) < threshold
                     if (isBorder) {
                         path.addRect(
                             x.toFloat(), y.toFloat(),
-                            (x + 1).toFloat(), (y + 1).toFloat(),
+                            (x + step).toFloat(), (y + step).toFloat(),
                             Path.Direction.CW
                         )
                     }
@@ -154,14 +157,11 @@ class BitmapProcessor(
 
     private fun calculateInSampleSize(width: Int, height: Int, maxDimension: Int): Int {
         var inSampleSize = 1
-        if (width > maxDimension || height > maxDimension) {
-            val halfWidth = width / 2
-            val halfHeight = height / 2
-            while (halfWidth / inSampleSize >= maxDimension ||
-                halfHeight / inSampleSize >= maxDimension
-            ) {
-                inSampleSize *= 2
-            }
+        // Keep doubling inSampleSize until BOTH dimensions fit within maxDimension.
+        // Previous logic checked halfWidth >= maxDimension which was always false for
+        // images just slightly over the limit (e.g. 2560 → halfWidth=1280 < 2048).
+        while (width / inSampleSize > maxDimension || height / inSampleSize > maxDimension) {
+            inSampleSize *= 2
         }
         return inSampleSize
     }

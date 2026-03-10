@@ -10,34 +10,30 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.scale
-import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.drawscope.translate
 
 /**
  * Draws an animated dashed shimmer outline around a segmented subject.
  *
- * The outline path must be in image space. [scaleX] and [scaleY] map it
- * from image coordinates to composable display coordinates.
+ * [pathScale], [pathOffsetX], [pathOffsetY] must be computed from ContentScale.Fit
+ * so the path (which is in bitmap/image space) aligns with the letterboxed image.
  *
- * Usage:
- * ```
- * Image(
- *     modifier = Modifier.shimmerOutline(outlinePath, scaleX, scaleY, visible = isSegmented)
- * )
- * ```
+ * Use [computeFitTransform] in the composable to get these values.
  */
 @Composable
 fun Modifier.shimmerOutline(
     outlinePath: Path,
-    scaleX: Float,
-    scaleY: Float,
+    pathScale: Float,
+    pathOffsetX: Float,
+    pathOffsetY: Float,
     visible: Boolean,
     color: Color = Color.White,
     strokeWidth: Float = 6f,
@@ -58,21 +54,43 @@ fun Modifier.shimmerOutline(
     return this.drawWithContent {
         drawContent()
         if (visible && !outlinePath.isEmpty) {
-            scale(scaleX = scaleX, scaleY = scaleY) {
-                drawPath(
-                    path = outlinePath,
-                    color = color,
-                    style = Stroke(
-                        width = strokeWidth / scaleX,
-                        cap = StrokeCap.Round,
-                        join = StrokeJoin.Round,
-                        pathEffect = PathEffect.dashPathEffect(
-                            intervals = floatArrayOf(dashLength, gapLength),
-                            phase = phase
+            // Translate to letterbox offset first, then scale from origin (Offset.Zero)
+            // so that path point (0,0) maps to the top-left of the rendered image.
+            translate(left = pathOffsetX, top = pathOffsetY) {
+                scale(scaleX = pathScale, scaleY = pathScale, pivot = Offset.Zero) {
+                    drawPath(
+                        path = outlinePath,
+                        color = color,
+                        style = Stroke(
+                            width = strokeWidth / pathScale,
+                            cap = StrokeCap.Round,
+                            join = StrokeJoin.Round,
+                            pathEffect = PathEffect.dashPathEffect(
+                                intervals = floatArrayOf(dashLength, gapLength),
+                                phase = phase
+                            )
                         )
                     )
-                )
+                }
             }
         }
     }
+}
+
+/**
+ * Computes the uniform scale and letterbox offsets for ContentScale.Fit.
+ * Returns Triple(scale, offsetX, offsetY).
+ */
+fun computeFitTransform(
+    bitmapWidth: Int,
+    bitmapHeight: Int,
+    boxWidth: Float,
+    boxHeight: Float
+): Triple<Float, Float, Float> {
+    val scaleX = boxWidth / bitmapWidth
+    val scaleY = boxHeight / bitmapHeight
+    val scale = minOf(scaleX, scaleY)
+    val offsetX = (boxWidth - bitmapWidth * scale) / 2f
+    val offsetY = (boxHeight - bitmapHeight * scale) / 2f
+    return Triple(scale, offsetX, offsetY)
 }

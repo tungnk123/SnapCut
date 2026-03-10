@@ -1,8 +1,12 @@
 package com.tungnk123.snapcut.feature.editor
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.Path
 import android.net.Uri
+import android.util.Log
+import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tungnk123.snapcut.core.bitmap.BitmapProcessor
@@ -10,6 +14,7 @@ import com.tungnk123.snapcut.core.ml.SubjectSegmentationManager
 import com.tungnk123.snapcut.data.repository.StickerRepository
 import com.tungnk123.snapcut.di.DefaultDispatcher
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -19,7 +24,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 import javax.inject.Inject
+
+private const val TAG = "SnapCut.Editor"
 
 sealed interface EditorUiState {
     data object Idle : EditorUiState
@@ -42,6 +51,7 @@ sealed interface EditorEvent {
 
 @HiltViewModel
 class EditorViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val bitmapProcessor: BitmapProcessor,
     private val segmentationManager: SubjectSegmentationManager,
     private val stickerRepository: StickerRepository,
@@ -55,54 +65,99 @@ class EditorViewModel @Inject constructor(
     val events: Flow<EditorEvent> = _events.receiveAsFlow()
 
     fun loadImage(uri: Uri) {
+        Log.d(TAG, "loadImage: $uri")
         viewModelScope.launch {
             bitmapProcessor.decodeBitmap(uri)
                 .onSuccess { bitmap ->
+                    Log.d(TAG, "Image decoded: ${bitmap.width}x${bitmap.height} config=${bitmap.config}")
                     _uiState.update { EditorUiState.ImageLoaded(bitmap) }
+                    // Auto-segment at center immediately after load (test mode)
+                    onLongPressDetected(bitmap.width / 2f, bitmap.height / 2f)
                 }
                 .onFailure { e ->
+                    Log.e(TAG, "decodeBitmap failed: ${e.message}", e)
                     _uiState.update { EditorUiState.Error("Failed to load image: ${e.message}") }
                 }
         }
     }
 
-    fun onLongPressDetected() {
+    /**
+     * [tapImageX] / [tapImageY]: long-press position mapped to image pixel coordinates.
+     * Used to select the specific subject the user tapped on when multiple subjects exist.
+     */
+    fun onLongPressDetected(tapImageX: Float, tapImageY: Float) {
         val current = _uiState.value
+        Log.d(TAG, "onLongPressDetected: tap=(${tapImageX},${tapImageY}) state=${current::class.simpleName}")
         if (current !is EditorUiState.ImageLoaded) return
 
         viewModelScope.launch {
             _uiState.update { EditorUiState.Segmenting }
-            segmentationManager.segmentSubject(current.sourceBitmap)
+            segmentationManager.segmentSubject(current.sourceBitmap, tapImageX, tapImageY)
                 .onSuccess { result ->
-                    val outlinePath = bitmapProcessor.extractOutlinePath(result)
+                    Log.d(TAG, "Segmentation success: foreground=${result.foregroundBitmap.width}x${result.foregroundBitmap.height}")
+                    val outlinePath = withContext(defaultDispatcher) {
+                        val path = bitmapProcessor.extractOutlinePath(result)
+                        Log.d(TAG, "extractOutlinePath done: empty=${path.isEmpty}")
+                        path
+                    }
+                    val fullBitmap = result.foregroundBitmap
+                    Log.d(TAG, "State → SubjectLifted")
                     _uiState.update {
                         EditorUiState.SubjectLifted(
                             sourceBitmap = current.sourceBitmap,
-                            subjectBitmap = result.foregroundBitmap,
+                            subjectBitmap = fullBitmap,
                             outlinePath = outlinePath,
                             isLifted = true
                         )
                     }
                 }
                 .onFailure { e ->
+                    Log.e(TAG, "Segmentation failed: ${e.javaClass.simpleName}: ${e.message}", e)
                     _uiState.update { EditorUiState.ImageLoaded(current.sourceBitmap) }
-                    _events.send(EditorEvent.ShowMessage("No subject found. Try a different area."))
+                    _events.send(EditorEvent.ShowMessage(
+                        e.message ?: "No subject found. Try long-pressing on a person or object."
+                    ))
                 }
         }
     }
 
-    fun saveSubject() {
+    fun copySubjectToClipboard() {
         val current = _uiState.value as? EditorUiState.SubjectLifted ?: return
         viewModelScope.launch {
-            val fileName = "cut_${System.currentTimeMillis()}"
+            val fileName = "copy_${System.currentTimeMillis()}"
             bitmapProcessor.saveCutBitmapToFile(current.subjectBitmap, fileName)
                 .onSuccess { path ->
-                    // Save URI as placeholder — actual source URI needs to be tracked
-                    _events.send(EditorEvent.SubjectSaved)
-                    _events.send(EditorEvent.ShowMessage("Saved to gallery!"))
+                    val uri = FileProvider.getUriForFile(
+                        context,
+                        "${context.packageName}.fileprovider",
+                        File(path)
+                    )
+                    val clip = ClipData.newUri(context.contentResolver, "Copied subject", uri)
+                    val clipboard = context.getSystemService(ClipboardManager::class.java)
+                    clipboard?.setPrimaryClip(clip)
+                    _events.send(EditorEvent.ShowMessage("Copied!"))
                 }
                 .onFailure {
-                    _events.send(EditorEvent.ShowMessage("Failed to save."))
+                    _events.send(EditorEvent.ShowMessage("Failed to copy."))
+                }
+        }
+    }
+
+    fun shareSubject() {
+        val current = _uiState.value as? EditorUiState.SubjectLifted ?: return
+        viewModelScope.launch {
+            val fileName = "share_${System.currentTimeMillis()}"
+            bitmapProcessor.saveCutBitmapToFile(current.subjectBitmap, fileName)
+                .onSuccess { path ->
+                    val uri = FileProvider.getUriForFile(
+                        context,
+                        "${context.packageName}.fileprovider",
+                        File(path)
+                    )
+                    _events.send(EditorEvent.SubjectShared(uri))
+                }
+                .onFailure {
+                    _events.send(EditorEvent.ShowMessage("Failed to share."))
                 }
         }
     }
@@ -128,8 +183,7 @@ class EditorViewModel @Inject constructor(
         }
     }
 
-    override fun onCleared() {
-        super.onCleared()
-        segmentationManager.close()
-    }
+    // Do NOT close segmentationManager here — it is @Singleton and shared across
+    // all EditorViewModel instances. Closing it in onCleared() permanently kills
+    // the MLKit segmenter for the app's lifetime until cache is cleared.
 }

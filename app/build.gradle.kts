@@ -72,6 +72,7 @@ dependencies {
 
     // Hilt DI — use KSP not KAPT
     implementation(libs.hilt.android)
+    implementation(libs.litert.api)
     ksp(libs.hilt.compiler)
     implementation(libs.hilt.navigation.compose)
 

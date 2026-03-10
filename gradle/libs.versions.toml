@@ -17,9 +17,10 @@ room = "2.8.4"
 coil = "2.7.0"
 coroutines = "1.9.0"
 kotlinxSerialization = "1.7.3"
-mlkitSubjectSegmentation = "16.0.0-beta1"
+mediapipe = "0.10.32"
 mockk = "1.13.13"
 turbine = "1.2.0"
+litertApi = "1.4.1"
 
 [libraries]
 # Core AndroidX
@@ -62,8 +63,8 @@ kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 # Coil Image Loading
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 
-# MLKit Subject Segmentation (core SnapCut feature)
-mlkit-subject-segmentation = { group = "com.google.android.gms", name = "play-services-mlkit-subject-segmentation", version.ref = "mlkitSubjectSegmentation" }
+# MediaPipe — better model quality than MLKit selfie, explicit CPU delegate (no GPU crash)
+mlkit-subject-segmentation = { group = "com.google.mediapipe", name = "tasks-vision", version.ref = "mediapipe" }
 
 # Testing
 junit = { group = "junit", name = "junit", version.ref = "junit" }
@@ -74,6 +75,7 @@ turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine
 coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
 hilt-android-testing = { group = "com.google.dagger", name = "hilt-android-testing", version.ref = "hilt" }
 room-testing = { group = "androidx.room", name = "room-testing", version.ref = "room" }
+litert-api = { group = "com.google.ai.edge.litert", name = "litert-api", version.ref = "litertApi" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

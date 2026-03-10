@@ -1,5 +1,6 @@
 package com.tungnk123.snapcut.feature.editor
 
+import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.layout.fillMaxSize
@@ -54,7 +55,15 @@ fun EditorScreen(
                 is EditorEvent.ShowMessage ->
                     Toast.makeText(context, event.message, Toast.LENGTH_SHORT).show()
                 is EditorEvent.SubjectSaved -> showActionSheet = false
-                is EditorEvent.SubjectShared -> showActionSheet = false
+                is EditorEvent.SubjectShared -> {
+                    showActionSheet = false
+                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "image/png"
+                        putExtra(Intent.EXTRA_STREAM, event.uri)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    context.startActivity(Intent.createChooser(shareIntent, "Share via"))
+                }
             }
         }
     }
@@ -85,7 +94,7 @@ fun EditorScreen(
                     subjectBitmap = null,
                     outlinePath = Path(),
                     isLifted = false,
-                    onLongPress = { viewModel.onLongPressDetected() },
+                    onLongPress = { x, y -> viewModel.onLongPressDetected(x, y) },
                     onTap = {},
                     modifier = Modifier
                         .fillMaxSize()
@@ -110,7 +119,7 @@ fun EditorScreen(
                     subjectBitmap = state.subjectBitmap,
                     outlinePath = state.outlinePath.asComposePath(),
                     isLifted = state.isLifted,
-                    onLongPress = {},
+                    onLongPress = { _, _ -> },
                     onTap = { showActionSheet = true },
                     modifier = Modifier
                         .fillMaxSize()
@@ -121,11 +130,11 @@ fun EditorScreen(
                     ActionSheet(
                         onDismiss = { showActionSheet = false },
                         onCopy = {
-                            // Copy transparent PNG to clipboard
+                            viewModel.copySubjectToClipboard()
                             showActionSheet = false
                         },
                         onShare = {
-                            showActionSheet = false
+                            viewModel.shareSubject()
                         },
                         onSave = {
                             viewModel.saveToGallery()
