@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -29,21 +30,26 @@ import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -54,16 +60,20 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.tungnk123.snapcut.ui.GalleryGridSkeleton
 import coil.request.ImageRequest
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -76,6 +86,7 @@ fun PickerScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
 
     val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         Manifest.permission.READ_MEDIA_IMAGES
@@ -98,25 +109,30 @@ fun PickerScreen(
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("SnapCut") }) }
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        topBar = {
+            TopAppBar(
+                title = { Text("SnapCut", fontWeight = FontWeight.Bold) },
+                scrollBehavior = scrollBehavior,
+                colors = TopAppBarDefaults.topAppBarColors(
+                    scrolledContainerColor = MaterialTheme.colorScheme.surface,
+                ),
+            )
+        },
     ) { innerPadding ->
         when {
-            !uiState.hasPermission -> {
-                Box(
-                    modifier = Modifier.fillMaxSize().padding(innerPadding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("Storage permission is required to load images")
-                }
-            }
+            !uiState.hasPermission -> PermissionState(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+            )
 
             uiState.isLoading -> {
-                Box(
-                    modifier = Modifier.fillMaxSize().padding(innerPadding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
-                }
+                GalleryGridSkeleton(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                )
             }
 
             else -> {
@@ -133,6 +149,44 @@ fun PickerScreen(
 }
 
 @Composable
+private fun PermissionState(modifier: Modifier = Modifier) {
+    Box(modifier.padding(32.dp), contentAlignment = Alignment.Center) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.errorContainer,
+                modifier = Modifier.size(88.dp)
+            ) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Outlined.Lock,
+                        contentDescription = null,
+                        modifier = Modifier.size(40.dp),
+                        tint = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                }
+            }
+            Text(
+                "Permission required",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                "Grant storage permission to browse and pick photos",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 private fun GalleryContent(
     uiState: PickerUiState,
     onImagePicked: (Uri) -> Unit,
@@ -144,45 +198,103 @@ private fun GalleryContent(
     val context = LocalContext.current
 
     Column(modifier.fillMaxSize()) {
-        OutlinedTextField(
+        // M3 filled search bar style
+        TextField(
             value = uiState.searchQuery,
             onValueChange = onSearchChanged,
-            placeholder = { Text("Search images...") },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            placeholder = { Text("Search photos…") },
+            leadingIcon = {
+                Icon(
+                    Icons.Default.Search,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            },
             trailingIcon = {
                 if (uiState.searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { onSearchChanged("") }) {
-                        Icon(Icons.Default.Clear, contentDescription = null)
+                    androidx.compose.material3.IconButton(onClick = { onSearchChanged("") }) {
+                        Icon(
+                            Icons.Default.Clear,
+                            contentDescription = "Clear",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             },
             singleLine = true,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            shape = RoundedCornerShape(24.dp),
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                focusedIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent,
+                disabledIndicatorColor = Color.Transparent,
+            ),
+            shape = RoundedCornerShape(28.dp),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .padding(horizontal = 16.dp, vertical = 8.dp),
         )
 
         LazyRow(
-            contentPadding = PaddingValues(horizontal = 12.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(bottom = 8.dp),
+            modifier = Modifier.padding(bottom = 4.dp),
         ) {
             GalleryFilter.entries.forEach { filter ->
                 item(key = filter.name) {
                     FilterChip(
                         selected = uiState.filter == filter,
                         onClick = { onFilterChanged(filter) },
-                        label = { Text(filter.label) },
+                        label = {
+                            Text(
+                                filter.label,
+                                fontWeight = if (uiState.filter == filter) FontWeight.SemiBold else FontWeight.Normal
+                            )
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        ),
                     )
                 }
             }
         }
 
         if (uiState.groupedItems.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No images found", style = MaterialTheme.typography.bodyMedium)
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        modifier = Modifier.size(80.dp)
+                    ) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Outlined.Image, null,
+                                modifier = Modifier.size(36.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Text(
+                        "No photos found",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        "Try a different search or filter",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         } else {
             Box(Modifier.fillMaxSize()) {
@@ -214,10 +326,17 @@ private fun GalleryContent(
                             is GalleryItem.Header -> {
                                 Text(
                                     text = item.label,
-                                    style = MaterialTheme.typography.labelMedium,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                                        .padding(
+                                            start = 12.dp,
+                                            end = 12.dp,
+                                            top = 14.dp,
+                                            bottom = 4.dp
+                                        ),
                                 )
                             }
                             is GalleryItem.Image -> {
@@ -280,32 +399,30 @@ private fun VerticalScrollbar(
         val currentMaxOffsetPx by rememberUpdatedState(maxOffsetPx)
         val currentThumbOffsetPx by rememberUpdatedState(thumbOffsetPx)
 
-        // Track
         Box(
             Modifier
                 .fillMaxSize()
-                .background(
-                    MaterialTheme.colorScheme.surfaceVariant,
-                    RoundedCornerShape(3.dp)
-                )
+                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(3.dp))
         )
-        // Thumb
         Box(
             Modifier
                 .width(6.dp)
                 .height(with(density) { thumbPx.toDp() })
                 .offset(y = with(density) { thumbOffsetPx.toDp() })
                 .clip(RoundedCornerShape(3.dp))
-                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.6f))
                 .pointerInput(Unit) {
                     var dragOffset = 0f
                     detectDragGestures(
                         onDragStart = { dragOffset = currentThumbOffsetPx },
                         onDrag = { change, dragAmount ->
                             change.consume()
-                            dragOffset = (dragOffset + dragAmount.y).coerceIn(0f, currentMaxOffsetPx)
-                            val fraction = if (currentMaxOffsetPx > 0) dragOffset / currentMaxOffsetPx else 0f
-                            val targetIndex = (fraction * (currentTotalItems - currentVisibleCount)).roundToInt()
+                            dragOffset =
+                                (dragOffset + dragAmount.y).coerceIn(0f, currentMaxOffsetPx)
+                            val fraction =
+                                if (currentMaxOffsetPx > 0) dragOffset / currentMaxOffsetPx else 0f
+                            val targetIndex =
+                                (fraction * (currentTotalItems - currentVisibleCount)).roundToInt()
                             coroutineScope.launch { state.scrollToItem(targetIndex) }
                         }
                     )
