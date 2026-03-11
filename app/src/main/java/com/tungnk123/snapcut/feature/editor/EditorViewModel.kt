@@ -96,16 +96,12 @@ class EditorViewModel @Inject constructor(
                 .onSuccess { result ->
                     Log.d(TAG, "Segmentation success: foreground=${result.foregroundBitmap.width}x${result.foregroundBitmap.height}")
                     val outlinePath = withContext(defaultDispatcher) {
-                        val path = bitmapProcessor.extractOutlinePath(result)
-                        Log.d(TAG, "extractOutlinePath done: empty=${path.isEmpty}")
-                        path
+                        bitmapProcessor.extractOutlinePath(result)
                     }
-                    val fullBitmap = result.foregroundBitmap
-                    Log.d(TAG, "State → SubjectLifted")
                     _uiState.update {
                         EditorUiState.SubjectLifted(
                             sourceBitmap = current.sourceBitmap,
-                            subjectBitmap = fullBitmap,
+                            subjectBitmap = result.foregroundBitmap,
                             outlinePath = outlinePath,
                             isLifted = true
                         )

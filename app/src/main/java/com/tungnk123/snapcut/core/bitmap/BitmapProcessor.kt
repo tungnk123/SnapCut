@@ -120,9 +120,6 @@ class BitmapProcessor(
     fun extractOutlinePath(
         result: SegmentationResult,
         threshold: Float = 0.5f,
-        // Sample every `step` pixels to reduce path complexity ~step² times.
-        // step=8 reduces a 1080x2400 scan from 2.6M to ~40k checks and
-        // drops path rect count from ~10k to ~150 — 60fps draw becomes trivial.
         step: Int = 8
     ): Path {
         val maskBuffer = result.confidenceMask ?: return Path()

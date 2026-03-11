@@ -23,11 +23,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.asComposePath
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.graphics.asComposePath
 import com.tungnk123.snapcut.feature.editor.components.ActionSheet
 import com.tungnk123.snapcut.feature.editor.components.SubjectLiftCanvas
 
@@ -92,7 +91,6 @@ fun EditorScreen(
                 SubjectLiftCanvas(
                     sourceBitmap = state.sourceBitmap,
                     subjectBitmap = null,
-                    outlinePath = Path(),
                     isLifted = false,
                     onLongPress = { x, y -> viewModel.onLongPressDetected(x, y) },
                     onTap = {},
@@ -128,17 +126,14 @@ fun EditorScreen(
 
                 if (showActionSheet) {
                     ActionSheet(
+                        subjectBitmap = state.subjectBitmap,
                         onDismiss = { showActionSheet = false },
                         onCopy = {
                             viewModel.copySubjectToClipboard()
                             showActionSheet = false
                         },
-                        onShare = {
-                            viewModel.shareSubject()
-                        },
-                        onSave = {
-                            viewModel.saveToGallery()
-                        }
+                        onShare = { viewModel.shareSubject() },
+                        onSave = { viewModel.saveToGallery() }
                     )
                 }
             }
