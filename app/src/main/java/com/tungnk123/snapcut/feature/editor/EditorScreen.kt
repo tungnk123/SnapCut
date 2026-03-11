@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.History
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -35,7 +34,6 @@ import com.tungnk123.snapcut.feature.editor.components.SubjectLiftCanvas
 fun EditorScreen(
     imageUri: Uri,
     onBack: () -> Unit,
-    onNavigateToHistory: () -> Unit,
     viewModel: EditorViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -76,11 +74,6 @@ fun EditorScreen(
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 },
-                actions = {
-                    IconButton(onClick = onNavigateToHistory) {
-                        Icon(Icons.Default.History, contentDescription = "Sticker history")
-                    }
-                }
             )
         }
     ) { innerPadding ->

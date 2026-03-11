@@ -23,7 +23,11 @@ object DatabaseModule {
         context,
         AppDatabase::class.java,
         "snapcut_database"
-    ).build()
+    )
+        // Dev-only: destroys and re-creates DB on schema version mismatch.
+        // Replace with proper Migration objects before shipping to production.
+        .fallbackToDestructiveMigration(dropAllTables = true)
+        .build()
 
     @Provides
     fun provideCutSubjectDao(database: AppDatabase): CutSubjectDao =

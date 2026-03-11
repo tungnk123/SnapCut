@@ -64,8 +64,11 @@ class EditorViewModel @Inject constructor(
     private val _events = Channel<EditorEvent>(Channel.BUFFERED)
     val events: Flow<EditorEvent> = _events.receiveAsFlow()
 
+    private var sourceUri: Uri? = null
+
     fun loadImage(uri: Uri) {
         Log.d(TAG, "loadImage: $uri")
+        sourceUri = uri
         viewModelScope.launch {
             bitmapProcessor.decodeBitmap(uri)
                 .onSuccess { bitmap ->
@@ -98,6 +101,16 @@ class EditorViewModel @Inject constructor(
                     val outlinePath = withContext(defaultDispatcher) {
                         bitmapProcessor.extractOutlinePath(result)
                     }
+                    // Save cut subject to sticker repository so it appears in Stickers tab
+                    val fileName = "sticker_${System.currentTimeMillis()}"
+                    bitmapProcessor.saveCutBitmapToFile(result.foregroundBitmap, fileName)
+                        .onSuccess { cutImagePath ->
+                            sourceUri?.let { uri ->
+                                stickerRepository.saveCutSubject(uri, cutImagePath)
+                                    .onFailure { e -> Log.e(TAG, "Failed to save sticker: ${e.message}", e) }
+                            }
+                        }
+                        .onFailure { e -> Log.e(TAG, "Failed to write sticker file: ${e.message}", e) }
                     _uiState.update {
                         EditorUiState.SubjectLifted(
                             sourceBitmap = current.sourceBitmap,

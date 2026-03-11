@@ -8,4 +8,5 @@ interface StickerRepository {
     fun observeHistory(): Flow<List<CutSubject>>
     suspend fun saveCutSubject(sourceUri: Uri, cutImagePath: String): Result<CutSubject>
     suspend fun deleteCutSubject(id: Long): Result<Unit>
+    suspend fun deleteAll(): Result<Unit>
 }

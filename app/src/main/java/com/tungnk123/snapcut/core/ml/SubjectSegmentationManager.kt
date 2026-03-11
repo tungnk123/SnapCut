@@ -20,7 +20,7 @@ class SubjectSegmentationManager @Inject constructor() {
                 .enableForegroundBitmap()
                 .build()
         )
-    }       
+    }
 
     suspend fun segmentSubject(bitmap: Bitmap): Result<SegmentationResult> =
         suspendCancellableCoroutine { continuation ->

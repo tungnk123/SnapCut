@@ -48,6 +48,12 @@ android {
     }
 }
 
+// Room schema export — required for exportSchema=true to write schema JSON files.
+// Commit the schemas/ directory to version control for migration tracking.
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 dependencies {
     // Core
     implementation(libs.androidx.core.ktx)

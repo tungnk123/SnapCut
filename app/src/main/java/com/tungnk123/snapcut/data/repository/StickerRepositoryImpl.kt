@@ -29,7 +29,7 @@ class StickerRepositoryImpl @Inject constructor(
                 sourceImageUri = sourceUri.toString(),
                 cutImagePath = cutImagePath
             )
-            val id = dao.insert(entity)
+            val id = dao.upsert(entity)
             entity.copy(id = id).toDomain()
         }
     }
@@ -37,5 +37,10 @@ class StickerRepositoryImpl @Inject constructor(
     override suspend fun deleteCutSubject(id: Long): Result<Unit> =
         withContext(ioDispatcher) {
             runCatching { dao.deleteById(id) }
+        }
+
+    override suspend fun deleteAll(): Result<Unit> =
+        withContext(ioDispatcher) {
+            runCatching { dao.deleteAll() }
         }
 }
