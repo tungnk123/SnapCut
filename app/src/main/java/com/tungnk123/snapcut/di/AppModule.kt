@@ -33,9 +33,8 @@ object AppProviderModule {
 
     @Provides
     @Singleton
-    fun provideSubjectSegmentationManager(
-        @ApplicationContext context: Context
-    ): SubjectSegmentationManager = SubjectSegmentationManager(context)
+    fun provideSubjectSegmentationManager(): SubjectSegmentationManager =
+        SubjectSegmentationManager()
 
     @Provides
     @Singleton

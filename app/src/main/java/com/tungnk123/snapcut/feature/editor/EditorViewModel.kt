@@ -92,7 +92,7 @@ class EditorViewModel @Inject constructor(
 
         viewModelScope.launch {
             _uiState.update { EditorUiState.Segmenting }
-            segmentationManager.segmentSubject(current.sourceBitmap, tapImageX, tapImageY)
+            segmentationManager.segmentSubject(current.sourceBitmap)
                 .onSuccess { result ->
                     Log.d(TAG, "Segmentation success: foreground=${result.foregroundBitmap.width}x${result.foregroundBitmap.height}")
                     val outlinePath = withContext(defaultDispatcher) {

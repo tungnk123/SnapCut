@@ -72,7 +72,6 @@ dependencies {
 
     // Hilt DI — use KSP not KAPT
     implementation(libs.hilt.android)
-    implementation(libs.litert.api)
     ksp(libs.hilt.compiler)
     implementation(libs.hilt.navigation.compose)
 
@@ -87,7 +86,8 @@ dependencies {
     // Coil Image Loading
     implementation(libs.coil.compose)
 
-    // MLKit Subject Segmentation — core SnapCut feature
+    // ML Kit Subject Segmentation — segments any subject (people + objects).
+    // android:memtagMode="off" in the manifest fixes the Android 16 MTE/GPU SIGSEGV.
     implementation(libs.mlkit.subject.segmentation)
 
     // Unit Tests
