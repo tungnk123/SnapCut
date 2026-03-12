@@ -79,48 +79,14 @@ import java.io.File
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun StickerHistoryScreen(
-    viewModel: StickerViewModel = hiltViewModel()
+    onEditSticker: (CutSubject) -> Unit,
+    viewModel: StickerViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
-    var selectedSticker by remember { mutableStateOf<CutSubject?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
-    val bottomSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     val stickerCount = (uiState as? StickerUiState.Success)?.stickers?.size ?: 0
-
-    LaunchedEffect(Unit) {
-        viewModel.events.collect { event ->
-            when (event) {
-                is StickerEvent.ShowMessage -> snackbarHostState.showSnackbar(event.message)
-                is StickerEvent.Share -> {
-                    selectedSticker = null
-                    val intent = Intent(Intent.ACTION_SEND).apply {
-                        type = "image/png"
-                        putExtra(Intent.EXTRA_STREAM, event.uri)
-                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    }
-                    context.startActivity(Intent.createChooser(intent, "Share sticker"))
-                }
-            }
-        }
-    }
-
-    selectedSticker?.let { sticker ->
-        ModalBottomSheet(
-            onDismissRequest = { selectedSticker = null },
-            sheetState = bottomSheetState,
-        ) {
-            StickerActionSheet(
-                sticker = sticker,
-                onShare = { viewModel.shareSticker(sticker) },
-                onCopy = { viewModel.copyToClipboard(sticker); selectedSticker = null },
-                onSaveToGallery = { viewModel.saveToGallery(sticker); selectedSticker = null },
-                onDelete = { viewModel.deleteSticker(sticker.id); selectedSticker = null },
-            )
-        }
-    }
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -157,31 +123,44 @@ fun StickerHistoryScreen(
 
             is StickerUiState.Empty -> {
                 Box(
-                    modifier = Modifier.fillMaxSize().padding(innerPadding).padding(horizontal = 32.dp),
-                    contentAlignment = Alignment.Center
+                    modifier = Modifier.fillMaxSize().padding(innerPadding),
+                    contentAlignment = Alignment.Center,
                 ) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                        verticalArrangement = Arrangement.spacedBy(20.dp),
+                        modifier = Modifier.padding(horizontal = 40.dp),
                     ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.secondaryContainer,
-                            modifier = Modifier.size(88.dp)
-                        ) {
-                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Icon(
-                                    Icons.Outlined.AutoAwesome,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(40.dp),
-                                    tint = MaterialTheme.colorScheme.onSecondaryContainer
-                                )
+                        // Layered circles hero illustration
+                        Box(modifier = Modifier.size(172.dp)) {
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.tertiaryContainer,
+                                modifier = Modifier.size(96.dp).align(Alignment.BottomStart),
+                            ) {}
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                modifier = Modifier.size(96.dp).align(Alignment.BottomEnd),
+                            ) {}
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                modifier = Modifier.size(120.dp).align(Alignment.TopCenter),
+                            ) {
+                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        Icons.Outlined.AutoAwesome, null,
+                                        modifier = Modifier.size(52.dp),
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    )
+                                }
                             }
                         }
                         Text(
                             "No stickers yet",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.headlineLarge,
+                            fontWeight = FontWeight.ExtraBold,
                             textAlign = TextAlign.Center,
                         )
                         Text(
@@ -205,7 +184,7 @@ fun StickerHistoryScreen(
                     items(state.stickers, key = { it.id }) { sticker ->
                         StickerCell(
                             sticker = sticker,
-                            onClick = { selectedSticker = sticker },
+                            onClick = { onEditSticker(sticker) },
                         )
                     }
                 }
@@ -234,8 +213,11 @@ private fun StickerCell(sticker: CutSubject, onClick: () -> Unit) {
     ElevatedCard(
         onClick = onClick,
         interactionSource = interactionSource,
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 3.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        ),
         modifier = Modifier
             .aspectRatio(1f)
             .graphicsLayer { scaleX = scale; scaleY = scale },
@@ -246,120 +228,12 @@ private fun StickerCell(sticker: CutSubject, onClick: () -> Unit) {
             contentScale = ContentScale.Fit,
             modifier = Modifier
                 .fillMaxSize()
+                .padding(8.dp)
                 .checkerboard(checkLight, checkDark, tileSize = 10.dp),
         )
     }
 }
 
-@Composable
-private fun StickerActionSheet(
-    sticker: CutSubject,
-    onShare: () -> Unit,
-    onCopy: () -> Unit,
-    onSaveToGallery: () -> Unit,
-    onDelete: () -> Unit,
-) {
-    val checkLight = MaterialTheme.colorScheme.surfaceContainerLow
-    val checkDark = MaterialTheme.colorScheme.surfaceContainer
-
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        // Sticker preview
-        ElevatedCard(
-            shape = RoundedCornerShape(20.dp),
-            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp),
-            modifier = Modifier.size(120.dp),
-        ) {
-            AsyncImage(
-                model = File(sticker.cutImagePath),
-                contentDescription = null,
-                contentScale = ContentScale.Fit,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .checkerboard(checkLight, checkDark, tileSize = 8.dp),
-            )
-        }
-
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "Sticker",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Spacer(Modifier.height(16.dp))
-        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-        Spacer(Modifier.height(8.dp))
-
-        SheetAction(
-            icon = Icons.Outlined.Share,
-            iconContainerColor = MaterialTheme.colorScheme.primaryContainer,
-            iconTint = MaterialTheme.colorScheme.onPrimaryContainer,
-            label = "Share",
-            onClick = onShare,
-        )
-        SheetAction(
-            icon = Icons.Outlined.ContentCopy,
-            iconContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-            iconTint = MaterialTheme.colorScheme.onSecondaryContainer,
-            label = "Copy to clipboard",
-            onClick = onCopy,
-        )
-        SheetAction(
-            icon = Icons.Outlined.SaveAlt,
-            iconContainerColor = MaterialTheme.colorScheme.tertiaryContainer,
-            iconTint = MaterialTheme.colorScheme.onTertiaryContainer,
-            label = "Save to Gallery",
-            onClick = onSaveToGallery,
-        )
-
-        Spacer(Modifier.height(4.dp))
-        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-        Spacer(Modifier.height(4.dp))
-
-        SheetAction(
-            icon = Icons.Outlined.Delete,
-            iconContainerColor = MaterialTheme.colorScheme.errorContainer,
-            iconTint = MaterialTheme.colorScheme.onErrorContainer,
-            label = "Delete",
-            labelColor = MaterialTheme.colorScheme.error,
-            onClick = onDelete,
-        )
-    }
-}
-
-@Composable
-private fun SheetAction(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    iconContainerColor: Color,
-    iconTint: Color,
-    label: String,
-    labelColor: Color = MaterialTheme.colorScheme.onSurface,
-    onClick: () -> Unit,
-) {
-    TextButton(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = iconContainerColor,
-                modifier = Modifier.size(40.dp),
-            ) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Icon(icon, null, tint = iconTint, modifier = Modifier.size(20.dp))
-                }
-            }
-            Text(label, color = labelColor, style = MaterialTheme.typography.bodyLarge)
-        }
-    }
-}
 
 private fun Modifier.checkerboard(color1: Color, color2: Color, tileSize: Dp): Modifier =
     drawBehind {

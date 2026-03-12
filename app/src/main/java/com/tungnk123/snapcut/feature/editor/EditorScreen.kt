@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -45,11 +46,11 @@ import com.tungnk123.snapcut.feature.editor.components.SubjectLiftCanvas
 fun EditorScreen(
     imageUri: Uri,
     onBack: () -> Unit,
+    onEditSticker: (stickerId: Long, path: String) -> Unit = { _, _ -> },
     viewModel: EditorViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    var showActionSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(imageUri) {
         viewModel.loadImage(imageUri)
@@ -60,16 +61,8 @@ fun EditorScreen(
             when (event) {
                 is EditorEvent.ShowMessage ->
                     Toast.makeText(context, event.message, Toast.LENGTH_SHORT).show()
-                is EditorEvent.SubjectSaved -> showActionSheet = false
-                is EditorEvent.SubjectShared -> {
-                    showActionSheet = false
-                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                        type = "image/png"
-                        putExtra(Intent.EXTRA_STREAM, event.uri)
-                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    }
-                    context.startActivity(Intent.createChooser(shareIntent, "Share via"))
-                }
+                is EditorEvent.SubjectSaved -> Unit
+                is EditorEvent.SubjectShared -> Unit
             }
         }
     }
@@ -104,38 +97,54 @@ fun EditorScreen(
 
             is EditorUiState.Segmenting -> {
                 Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding),
-                    contentAlignment = Alignment.Center
+                    modifier = Modifier.fillMaxSize().padding(innerPadding),
+                    contentAlignment = Alignment.Center,
                 ) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(20.dp)
+                        verticalArrangement = Arrangement.spacedBy(28.dp),
                     ) {
-                        Surface(
-                            shape = RoundedCornerShape(28.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            modifier = Modifier.size(96.dp),
-                        ) {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
+                        // Layered circles with loading indicator in front
+                        Box(modifier = Modifier.size(160.dp)) {
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.tertiaryContainer,
+                                modifier = Modifier.size(88.dp).align(Alignment.BottomStart),
+                            ) {}
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                modifier = Modifier.size(88.dp).align(Alignment.BottomEnd),
+                            ) {}
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                modifier = Modifier.size(112.dp).align(Alignment.TopCenter),
                             ) {
-                                ContainedLoadingIndicator(
-                                    modifier = Modifier.size(96.dp),
-                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                                    indicatorColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    containerShape = RoundedCornerShape(28.dp)
-                                )
+                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    ContainedLoadingIndicator(
+                                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                        indicatorColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        containerShape = CircleShape,
+                                    )
+                                }
                             }
                         }
-                        Text(
-                            text = "Analyzing subject…",
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Text(
+                                text = "Lifting subject",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            Text(
+                                text = "Analyzing with ML Kit…",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
             }
@@ -143,28 +152,19 @@ fun EditorScreen(
             is EditorUiState.SubjectLifted -> {
                 SubjectLiftCanvas(
                     sourceBitmap = state.sourceBitmap,
-                    subjectBitmap = state.subjectBitmap,
+                    subjectBitmap = state.rawSubjectBitmap,
                     outlinePath = state.outlinePath.asComposePath(),
                     isLifted = state.isLifted,
                     onLongPress = { _, _ -> },
-                    onTap = { showActionSheet = true },
+                    onTap = {
+                        if (state.savedStickerId != -1L) {
+                            onEditSticker(state.savedStickerId, state.savedStickerPath)
+                        }
+                    },
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding)
                 )
-
-                if (showActionSheet) {
-                    ActionSheet(
-                        subjectBitmap = state.subjectBitmap,
-                        onDismiss = { showActionSheet = false },
-                        onCopy = {
-                            viewModel.copySubjectToClipboard()
-                            showActionSheet = false
-                        },
-                        onShare = { viewModel.shareSubject() },
-                        onSave = { viewModel.saveToGallery() }
-                    )
-                }
             }
 
             is EditorUiState.Error -> {

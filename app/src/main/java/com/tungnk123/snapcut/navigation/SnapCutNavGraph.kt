@@ -30,6 +30,7 @@ import androidx.navigation.toRoute
 import com.tungnk123.snapcut.feature.editor.EditorScreen
 import com.tungnk123.snapcut.feature.picker.PickerScreen
 import com.tungnk123.snapcut.feature.settings.SettingsScreen
+import com.tungnk123.snapcut.feature.sticker.StickerEditScreen
 import com.tungnk123.snapcut.feature.sticker.StickerHistoryScreen
 import kotlinx.serialization.Serializable
 import kotlin.reflect.KClass
@@ -37,6 +38,7 @@ import kotlin.reflect.KClass
 @Serializable object PickerRoute
 @Serializable data class EditorRoute(val encodedUri: String)
 @Serializable object StickerHistoryRoute
+@Serializable data class StickerEditRoute(val stickerId: Long, val encodedPath: String)
 @Serializable object SettingsRoute
 
 private data class TopLevelDestination(
@@ -133,11 +135,34 @@ fun SnapCutNavGraph(
                 EditorScreen(
                     imageUri = uri,
                     onBack = { navController.popBackStack() },
+                    onEditSticker = { stickerId, path ->
+                        navController.navigate(
+                            StickerEditRoute(stickerId, Uri.encode(path))
+                        )
+                    },
                 )
             }
 
             composable<StickerHistoryRoute> {
-                StickerHistoryScreen()
+                StickerHistoryScreen(
+                    onEditSticker = { sticker ->
+                        navController.navigate(
+                            StickerEditRoute(
+                                stickerId = sticker.id,
+                                encodedPath = Uri.encode(sticker.cutImagePath),
+                            )
+                        )
+                    }
+                )
+            }
+
+            composable<StickerEditRoute> { backStackEntry ->
+                val route = backStackEntry.toRoute<StickerEditRoute>()
+                StickerEditScreen(
+                    stickerId = route.stickerId,
+                    cutImagePath = Uri.decode(route.encodedPath),
+                    onBack = { navController.popBackStack() },
+                )
             }
 
             composable<SettingsRoute> {

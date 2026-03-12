@@ -10,6 +10,7 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tungnk123.snapcut.core.bitmap.BitmapProcessor
+import com.tungnk123.snapcut.core.bitmap.StickerStyle
 import com.tungnk123.snapcut.core.ml.SubjectSegmentationManager
 import com.tungnk123.snapcut.data.repository.StickerRepository
 import com.tungnk123.snapcut.di.DefaultDispatcher
@@ -36,9 +37,13 @@ sealed interface EditorUiState {
     data object Segmenting : EditorUiState
     data class SubjectLifted(
         val sourceBitmap: Bitmap,
-        val subjectBitmap: Bitmap,
+        val rawSubjectBitmap: Bitmap,
+        val styledSubjectBitmap: Bitmap,
+        val selectedStyle: StickerStyle = StickerStyle.NONE,
         val outlinePath: android.graphics.Path,
-        val isLifted: Boolean = true
+        val isLifted: Boolean = true,
+        val savedStickerId: Long = -1L,
+        val savedStickerPath: String = "",
     ) : EditorUiState
     data class Error(val message: String) : EditorUiState
 }
@@ -67,6 +72,9 @@ class EditorViewModel @Inject constructor(
     private var sourceUri: Uri? = null
 
     fun loadImage(uri: Uri) {
+        // Guard: skip if this URI is already loaded/processing to prevent re-segmentation
+        // when navigating back from StickerEditScreen (LaunchedEffect re-fires on recompose).
+        if (sourceUri == uri && _uiState.value !is EditorUiState.Idle) return
         Log.d(TAG, "loadImage: $uri")
         sourceUri = uri
         viewModelScope.launch {
@@ -98,15 +106,21 @@ class EditorViewModel @Inject constructor(
             segmentationManager.segmentSubject(current.sourceBitmap)
                 .onSuccess { result ->
                     Log.d(TAG, "Segmentation success: foreground=${result.foregroundBitmap.width}x${result.foregroundBitmap.height}")
-                    val outlinePath = withContext(defaultDispatcher) {
-                        bitmapProcessor.extractOutlinePath(result)
+                    val (outlinePath, defaultStyled) = withContext(defaultDispatcher) {
+                        val path = bitmapProcessor.extractOutlinePath(result)
+                        val styled = bitmapProcessor.applyStyle(result.foregroundBitmap, StickerStyle.WHITE_OUTLINE)
+                        path to styled
                     }
                     // Save cut subject to sticker repository so it appears in Stickers tab
                     val fileName = "sticker_${System.currentTimeMillis()}"
+                    var savedId = -1L
+                    var savedPath = ""
                     bitmapProcessor.saveCutBitmapToFile(result.foregroundBitmap, fileName)
                         .onSuccess { cutImagePath ->
+                            savedPath = cutImagePath
                             sourceUri?.let { uri ->
                                 stickerRepository.saveCutSubject(uri, cutImagePath)
+                                    .onSuccess { cutSubject -> savedId = cutSubject.id }
                                     .onFailure { e -> Log.e(TAG, "Failed to save sticker: ${e.message}", e) }
                             }
                         }
@@ -114,9 +128,13 @@ class EditorViewModel @Inject constructor(
                     _uiState.update {
                         EditorUiState.SubjectLifted(
                             sourceBitmap = current.sourceBitmap,
-                            subjectBitmap = result.foregroundBitmap,
+                            rawSubjectBitmap = result.foregroundBitmap,
+                            styledSubjectBitmap = defaultStyled,
+                            selectedStyle = StickerStyle.WHITE_OUTLINE,
                             outlinePath = outlinePath,
-                            isLifted = true
+                            isLifted = true,
+                            savedStickerId = savedId,
+                            savedStickerPath = savedPath,
                         )
                     }
                 }
@@ -130,11 +148,25 @@ class EditorViewModel @Inject constructor(
         }
     }
 
+    fun onStyleSelected(style: StickerStyle) {
+        val current = _uiState.value as? EditorUiState.SubjectLifted ?: return
+        if (current.selectedStyle == style) return
+        viewModelScope.launch {
+            val styled = withContext(defaultDispatcher) {
+                bitmapProcessor.applyStyle(current.rawSubjectBitmap, style)
+            }
+            _uiState.update { s ->
+                if (s is EditorUiState.SubjectLifted) s.copy(selectedStyle = style, styledSubjectBitmap = styled)
+                else s
+            }
+        }
+    }
+
     fun copySubjectToClipboard() {
         val current = _uiState.value as? EditorUiState.SubjectLifted ?: return
         viewModelScope.launch {
             val fileName = "copy_${System.currentTimeMillis()}"
-            bitmapProcessor.saveCutBitmapToFile(current.subjectBitmap, fileName)
+            bitmapProcessor.saveCutBitmapToFile(current.styledSubjectBitmap, fileName)
                 .onSuccess { path ->
                     val uri = FileProvider.getUriForFile(
                         context,
@@ -156,7 +188,7 @@ class EditorViewModel @Inject constructor(
         val current = _uiState.value as? EditorUiState.SubjectLifted ?: return
         viewModelScope.launch {
             val fileName = "share_${System.currentTimeMillis()}"
-            bitmapProcessor.saveCutBitmapToFile(current.subjectBitmap, fileName)
+            bitmapProcessor.saveCutBitmapToFile(current.styledSubjectBitmap, fileName)
                 .onSuccess { path ->
                     val uri = FileProvider.getUriForFile(
                         context,
@@ -174,7 +206,7 @@ class EditorViewModel @Inject constructor(
     fun saveToGallery() {
         val current = _uiState.value as? EditorUiState.SubjectLifted ?: return
         viewModelScope.launch {
-            bitmapProcessor.saveToGallery(current.subjectBitmap, "snapcut_${System.currentTimeMillis()}")
+            bitmapProcessor.saveToGallery(current.styledSubjectBitmap, "snapcut_${System.currentTimeMillis()}")
                 .onSuccess {
                     _events.send(EditorEvent.ShowMessage("Saved to Gallery!"))
                 }

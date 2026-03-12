@@ -266,37 +266,50 @@ private fun GalleryContent(
 
         if (uiState.groupedItems.isEmpty()) {
             Box(
-                Modifier
-                    .fillMaxSize()
-                    .padding(32.dp),
-                contentAlignment = Alignment.Center
+                Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
             ) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    verticalArrangement = Arrangement.spacedBy(20.dp),
+                    modifier = Modifier.padding(horizontal = 40.dp),
                 ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        modifier = Modifier.size(80.dp)
-                    ) {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Icon(
-                                Icons.Outlined.Image, null,
-                                modifier = Modifier.size(36.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                    Box(modifier = Modifier.size(160.dp)) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.tertiaryContainer,
+                            modifier = Modifier.size(88.dp).align(Alignment.BottomStart),
+                        ) {}
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            modifier = Modifier.size(88.dp).align(Alignment.BottomEnd),
+                        ) {}
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.size(108.dp).align(Alignment.TopCenter),
+                        ) {
+                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Outlined.Image, null,
+                                    modifier = Modifier.size(44.dp),
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                )
+                            }
                         }
                     }
                     Text(
                         "No photos found",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        textAlign = TextAlign.Center,
                     )
                     Text(
                         "Try a different search or filter",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
                     )
                 }
             }
@@ -328,20 +341,26 @@ private fun GalleryContent(
                     ) { item ->
                         when (item) {
                             is GalleryItem.Header -> {
-                                Text(
-                                    text = item.label,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary,
+                                Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(
-                                            start = 12.dp,
-                                            end = 12.dp,
-                                            top = 14.dp,
-                                            bottom = 4.dp
-                                        ),
-                                )
+                                        .padding(horizontal = 12.dp)
+                                        .padding(top = 14.dp, bottom = 4.dp),
+                                    contentAlignment = Alignment.CenterStart,
+                                ) {
+                                    Surface(
+                                        shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
+                                        color = MaterialTheme.colorScheme.primaryContainer,
+                                    ) {
+                                        Text(
+                                            text = item.label,
+                                            style = MaterialTheme.typography.labelLarge,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                                        )
+                                    }
+                                }
                             }
                             is GalleryItem.Image -> {
                                 AsyncImage(
