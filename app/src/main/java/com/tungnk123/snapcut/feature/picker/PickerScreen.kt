@@ -73,12 +73,13 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
-import com.tungnk123.snapcut.ui.GalleryGridSkeleton
+import androidx.compose.material3.ContainedLoadingIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import coil.request.ImageRequest
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun PickerScreen(
     onImagePicked: (Uri) -> Unit,
@@ -128,11 +129,14 @@ fun PickerScreen(
             )
 
             uiState.isLoading -> {
-                GalleryGridSkeleton(
+                Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
-                )
+                    contentAlignment = Alignment.Center,
+                ) {
+                    ContainedLoadingIndicator()
+                }
             }
 
             else -> {

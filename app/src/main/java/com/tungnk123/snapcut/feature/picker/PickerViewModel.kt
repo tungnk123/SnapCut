@@ -61,7 +61,7 @@ class PickerViewModel @Inject constructor(
 
     fun onPermissionGranted() {
         _uiState.update { it.copy(hasPermission = true) }
-        loadImages()
+        if (allImages.isEmpty()) loadImages()
     }
 
     fun onPermissionDenied() {

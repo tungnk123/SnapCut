@@ -73,11 +73,12 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import androidx.compose.material3.ContainedLoadingIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import com.tungnk123.snapcut.data.model.CutSubject
-import com.tungnk123.snapcut.ui.StickerGridSkeleton
 import java.io.File
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun StickerHistoryScreen(
     viewModel: StickerViewModel = hiltViewModel()
@@ -86,7 +87,7 @@ fun StickerHistoryScreen(
     val context = LocalContext.current
     var selectedSticker by remember { mutableStateOf<CutSubject?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
-    val bottomSheetState = rememberModalBottomSheetState()
+    val bottomSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     val stickerCount = (uiState as? StickerUiState.Success)?.stickers?.size ?: 0
@@ -148,9 +149,12 @@ fun StickerHistoryScreen(
     ) { innerPadding ->
         when (val state = uiState) {
             is StickerUiState.Loading -> {
-                StickerGridSkeleton(
+                Box(
                     modifier = Modifier.fillMaxSize().padding(innerPadding),
-                )
+                    contentAlignment = Alignment.Center,
+                ) {
+                    ContainedLoadingIndicator()
+                }
             }
 
             is StickerUiState.Empty -> {
