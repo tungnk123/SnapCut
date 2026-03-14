@@ -62,7 +62,15 @@ fun EditorScreen(
                 is EditorEvent.ShowMessage ->
                     Toast.makeText(context, event.message, Toast.LENGTH_SHORT).show()
                 is EditorEvent.SubjectSaved -> Unit
-                is EditorEvent.SubjectShared -> Unit
+                is EditorEvent.SubjectShared -> context.startActivity(
+                    android.content.Intent.createChooser(
+                        android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                            type = "image/webp"
+                            putExtra(android.content.Intent.EXTRA_STREAM, event.uri)
+                            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }, "Share sticker"
+                    )
+                )
             }
         }
     }

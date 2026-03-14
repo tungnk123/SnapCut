@@ -125,7 +125,7 @@ fun StickerEditScreen(
                 is StickerEditEvent.Share -> context.startActivity(
                     Intent.createChooser(
                         Intent(Intent.ACTION_SEND).apply {
-                            type = "image/png"
+                            type = "image/webp"
                             putExtra(Intent.EXTRA_STREAM, event.uri)
                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         }, "Share sticker"

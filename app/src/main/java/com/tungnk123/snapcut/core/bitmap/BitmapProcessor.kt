@@ -12,6 +12,7 @@ import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
 import android.graphics.PorterDuffXfermode
 import android.net.Uri
+import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import com.tungnk123.snapcut.core.ml.SegmentationResult
@@ -60,9 +61,15 @@ class BitmapProcessor(
         withContext(ioDispatcher) {
             runCatching {
                 val dir = File(context.filesDir, "cut_subjects").apply { mkdirs() }
-                val file = File(dir, "$fileName.png")
+                val file = File(dir, "$fileName.webp")
+                val format = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    Bitmap.CompressFormat.WEBP_LOSSLESS
+                } else {
+                    @Suppress("DEPRECATION")
+                    Bitmap.CompressFormat.WEBP
+                }
                 FileOutputStream(file).use { out ->
-                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+                    bitmap.compress(format, 100, out)
                 }
                 file.absolutePath
             }
@@ -75,9 +82,15 @@ class BitmapProcessor(
     suspend fun saveToGallery(bitmap: Bitmap, displayName: String): Result<Uri> =
         withContext(ioDispatcher) {
             runCatching {
+                val format = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    Bitmap.CompressFormat.WEBP_LOSSLESS
+                } else {
+                    @Suppress("DEPRECATION")
+                    Bitmap.CompressFormat.WEBP
+                }
                 val values = ContentValues().apply {
-                    put(MediaStore.Images.Media.DISPLAY_NAME, "$displayName.png")
-                    put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+                    put(MediaStore.Images.Media.DISPLAY_NAME, "$displayName.webp")
+                    put(MediaStore.Images.Media.MIME_TYPE, "image/webp")
                     put(
                         MediaStore.Images.Media.RELATIVE_PATH,
                         "${Environment.DIRECTORY_PICTURES}/SnapCut"
@@ -89,7 +102,7 @@ class BitmapProcessor(
                 ) ?: error("Failed to create MediaStore entry")
 
                 context.contentResolver.openOutputStream(uri)?.use { out ->
-                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+                    bitmap.compress(format, 100, out)
                 }
                 uri
             }
