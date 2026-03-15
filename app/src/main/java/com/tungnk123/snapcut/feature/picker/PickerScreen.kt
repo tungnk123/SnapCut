@@ -1,11 +1,14 @@
 package com.tungnk123.snapcut.feature.picker
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.app.ActivityCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -37,6 +40,7 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -121,8 +125,23 @@ fun PickerScreen(
             )
         },
     ) { innerPadding ->
+        val activity = context as? android.app.Activity
         when {
             !uiState.hasPermission -> PermissionState(
+                onRequestPermission = {
+                    val permanentlyDenied = activity != null &&
+                        !ActivityCompat.shouldShowRequestPermissionRationale(activity, permission) &&
+                        ContextCompat.checkSelfPermission(context, permission) != PackageManager.PERMISSION_GRANTED
+                    if (permanentlyDenied) {
+                        context.startActivity(
+                            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                data = Uri.fromParts("package", context.packageName, null)
+                            }
+                        )
+                    } else {
+                        permissionLauncher.launch(permission)
+                    }
+                },
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
@@ -153,7 +172,10 @@ fun PickerScreen(
 }
 
 @Composable
-private fun PermissionState(modifier: Modifier = Modifier) {
+private fun PermissionState(
+    onRequestPermission: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Box(modifier.padding(32.dp), contentAlignment = Alignment.Center) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -185,6 +207,9 @@ private fun PermissionState(modifier: Modifier = Modifier) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
             )
+            Button(onClick = onRequestPermission) {
+                Text("Grant Permission")
+            }
         }
     }
 }

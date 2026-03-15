@@ -13,6 +13,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoDelete
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.HighQuality
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.PhotoLibrary
@@ -25,6 +27,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -35,32 +38,57 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import android.content.Intent
+import android.provider.Settings
+import android.view.inputmethod.InputMethodManager
 import com.tungnk123.snapcut.BuildConfig
+import com.tungnk123.snapcut.feature.keyboard.StickerKeyboardService
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
+    val context = LocalContext.current
     var autoSaveToGallery by rememberSaveable { mutableStateOf(true) }
     var highQualityExport by rememberSaveable { mutableStateOf(true) }
     var showClearDialog by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
+    val imm = remember { context.getSystemService(InputMethodManager::class.java) }
+    val serviceId = remember { "${context.packageName}/${StickerKeyboardService::class.java.name}" }
+    var isStickerKeyboardEnabled by remember { mutableStateOf(imm.enabledInputMethodList.any { it.id == serviceId }) }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                isStickerKeyboardEnabled = imm.enabledInputMethodList.any { it.id == serviceId }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -105,6 +133,62 @@ fun SettingsScreen(
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            // Keyboard section
+            SettingsSection(title = "Sticker Keyboard") {
+                if (!isStickerKeyboardEnabled) {
+                    ListItem(
+                        leadingContent = {
+                            SettingsIconContainer(
+                                icon = Icons.Outlined.Keyboard,
+                                containerColor = MaterialTheme.colorScheme.errorContainer,
+                                iconTint = MaterialTheme.colorScheme.onErrorContainer,
+                            )
+                        },
+                        headlineContent = {
+                            Text("Keyboard not enabled", fontWeight = FontWeight.Medium)
+                        },
+                        supportingContent = {
+                            Text(
+                                "Enable the SnapCut keyboard in system settings to use stickers in any app.",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        },
+                        trailingContent = {
+                            Button(onClick = {
+                                context.startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
+                            }) {
+                                Text("Enable")
+                            }
+                        },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                    )
+                    androidx.compose.material3.HorizontalDivider(
+                        modifier = Modifier.padding(start = 72.dp, end = 16.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                    )
+                } else {
+                    SettingsClickItem(
+                        icon = Icons.Outlined.CheckCircle,
+                        iconContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                        iconTint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        title = "Keyboard Enabled",
+                        subtitle = "SnapCut keyboard is active",
+                        onClick = {
+                            context.startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
+                        },
+                    )
+                }
+                SettingsClickItem(
+                    icon = Icons.Outlined.Keyboard,
+                    iconContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    iconTint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    title = "Switch to Sticker Keyboard",
+                    subtitle = "Show keyboard picker to switch quickly",
+                    onClick = { imm.showInputMethodPicker() },
+                    showDivider = false,
+                )
+            }
+
             // Export section
             SettingsSection(title = "Export") {
                 SettingsToggleItem(
